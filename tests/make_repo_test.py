@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from datetime import datetime
+from datetime import timezone
 from unittest import mock
 
 import pytest
@@ -109,7 +111,23 @@ def test_arguments(in_git_dir):
 
 @pytest.fixture
 def fake_versions():
-    fns = {'ruby': lambda _: ('0.23.1', '0.24.0', '0.24.1')}
+    fns = {
+        'ruby': lambda _, *, with_pre_releases=False:
+        {
+            '0.23.1': datetime(
+                2021, 4, 18,
+                16, 43, 23, 10, tzinfo=timezone.utc,
+            ),
+            '0.24.0': datetime(
+                2022, 6, 3,
+                12, 3, 11, 5, tzinfo=timezone.utc,
+            ),
+            '0.24.1': datetime(
+                2023, 1, 9,
+                21, 0, 48, 121, tzinfo=timezone.utc,
+            ),
+        },
+    }
     with mock.patch.dict(LIST_VERSIONS, fns):
         yield
 
@@ -132,12 +150,24 @@ def test_make_repo_starting_empty(in_git_dir, fake_versions):
     assert _cmd('git', 'status', '--short') == ''
     expected = ['v0.23.1', 'v0.24.0', 'v0.24.1']
     assert _cmd('git', 'tag', '-l').split() == expected
-    log_lines = _cmd('git', 'log', '--oneline').splitlines()
-    log_lines_split = [log_line.split() for log_line in log_lines]
+    log_lines = _cmd(
+        'git', 'log',
+        '--pretty=format:%aI,%cI,%s',
+    ).splitlines()
+    log_lines_split = [log_line.split(',') for log_line in log_lines]
     assert log_lines_split == [
-        [mock.ANY, 'Mirror:', '0.24.1'],
-        [mock.ANY, 'Mirror:', '0.24.0'],
-        [mock.ANY, 'Mirror:', '0.23.1'],
+        [
+            '2023-01-09T21:00:48+00:00', '2023-01-09T21:00:48+00:00',
+            'Mirror: 0.24.1',
+        ],
+        [
+            '2022-06-03T12:03:11+00:00', '2022-06-03T12:03:11+00:00',
+            'Mirror: 0.24.0',
+        ],
+        [
+            '2021-04-18T16:43:23+00:00', '2021-04-18T16:43:23+00:00',
+            'Mirror: 0.23.1',
+        ],
     ]
 
 
@@ -158,11 +188,20 @@ def test_make_repo_starting_at_version(in_git_dir, fake_versions):
 
     # Assert that we only got tags / commits for the stuff we added
     assert _cmd('git', 'tag', '-l').split() == ['v0.24.0', 'v0.24.1']
-    log_lines = _cmd('git', 'log', '--oneline').splitlines()
-    log_lines_split = [log_line.split() for log_line in log_lines]
+    log_lines = _cmd(
+        'git', 'log',
+        '--pretty=format:%aI,%cI,%s',
+    ).splitlines()
+    log_lines_split = [log_line.split(',') for log_line in log_lines]
     assert log_lines_split == [
-        [mock.ANY, 'Mirror:', '0.24.1'],
-        [mock.ANY, 'Mirror:', '0.24.0'],
+        [
+            '2023-01-09T21:00:48+00:00', '2023-01-09T21:00:48+00:00',
+            'Mirror: 0.24.1',
+        ],
+        [
+            '2022-06-03T12:03:11+00:00', '2022-06-03T12:03:11+00:00',
+            'Mirror: 0.24.0',
+        ],
     ]
 
 

@@ -73,6 +73,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         '--require-serial', action='store_true',
         help='Set `require_serial: true` for the hook',
     )
+    parser.add_argument(
+        '--with-pre-releases', action='store_true',
+        help='Include pre-releases when mirroring.',
+    )
+    parser.add_argument(
+        '--skip-release-pattern', help='Regex pattern for releases to skip.',
+    )
     args = parser.parse_args(argv)
 
     minimum_pre_commit_version = '0'
@@ -107,6 +114,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args=json.dumps(split_by_commas(args.args)),
         require_serial=json.dumps(args.require_serial),
         minimum_pre_commit_version=minimum_pre_commit_version,
+        with_pre_releases=args.with_pre_releases,
+        skip_release_pattern=args.skip_release_pattern,
     )
     return 0
 

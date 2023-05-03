@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os.path
+import re
 import subprocess
+from datetime import datetime
 
 import pkg_resources
 
@@ -49,6 +51,7 @@ def _commit_version(
         repo: str, *,
         language: str,
         version: str,
+        release_datetime: datetime | None = None,
         **fmt_vars: str,
 ) -> None:
     # 'all' writes the .version and .pre-commit-hooks.yaml files
@@ -61,7 +64,13 @@ def _commit_version(
         os.remove(hooks_yaml)
 
     def git(*cmd: str) -> None:
-        subprocess.check_call(('git', '-C', repo) + cmd)
+        # Use release timestamp for author/commit timestamp, if available
+        env = {
+            **os.environ,
+            'GIT_AUTHOR_DATE': release_datetime.isoformat(),
+            'GIT_COMMITTER_DATE': release_datetime.isoformat(),
+        } if release_datetime else None
+        subprocess.run(('git', '-C', repo) + cmd, env=env, check=True)
 
     # Commit and tag
     git('add', '.')
@@ -69,10 +78,17 @@ def _commit_version(
     git('tag', f'v{version}')
 
 
-def make_repo(repo: str, *, language: str, name: str, **fmt_vars: str) -> None:
+def make_repo(
+    repo: str, *, language: str, name: str,
+    with_pre_releases: bool = False, skip_release_pattern: str | None = None,
+    **fmt_vars: str,
+) -> None:
     assert os.path.exists(os.path.join(repo, '.git')), repo
 
-    package_versions = LIST_VERSIONS[language](name)
+    releases = LIST_VERSIONS[language](
+        name, with_pre_releases=with_pre_releases,
+    )
+    package_versions = list(releases)
     version_file = os.path.join(repo, '.version')
     if os.path.exists(version_file):
         previous_version = open(version_file).read().strip()
@@ -82,6 +98,9 @@ def make_repo(repo: str, *, language: str, name: str, **fmt_vars: str) -> None:
         versions_to_apply = package_versions
 
     for version in versions_to_apply:
+        if skip_release_pattern and re.match(skip_release_pattern, version):
+            continue
+
         if language in ADDITIONAL_DEPENDENCIES:
             additional_dependencies = ADDITIONAL_DEPENDENCIES[language](
                 name,
@@ -95,6 +114,7 @@ def make_repo(repo: str, *, language: str, name: str, **fmt_vars: str) -> None:
             name=name,
             language=language,
             version=version,
+            release_datetime=releases[version],
             additional_dependencies=json.dumps(additional_dependencies),
             **fmt_vars,
         )
