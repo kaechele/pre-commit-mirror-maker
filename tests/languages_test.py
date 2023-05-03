@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from unittest import mock
+
+import pytest
+
 from pre_commit_mirror_maker.languages import node_get_package_versions
 from pre_commit_mirror_maker.languages import python_get_package_versions
+from pre_commit_mirror_maker.languages import ReleaseDesignationUnclearError
 from pre_commit_mirror_maker.languages import ruby_get_package_versions
 from pre_commit_mirror_maker.languages import rust_get_package_versions
 
@@ -29,6 +34,16 @@ def test_node_get_package_version_output_without_pre_releases():
     assert ret
     assert '2.13.4' in ret
     assert '2.11.0-rc1' not in ret
+
+
+@mock.patch('json.loads')
+def test_node_get_package_version_output_error_on_ambiguous_version(mock_json):
+    mock_json.return_value = {
+        'versions':
+        {'2.4.1~test1': '2023-01-09T21:00:48+00:00'},
+    }
+    with pytest.raises(ReleaseDesignationUnclearError):
+        node_get_package_versions('jshint', with_pre_releases=False)
 
 
 def test_python_get_package_version_output():

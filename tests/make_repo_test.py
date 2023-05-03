@@ -205,6 +205,37 @@ def test_make_repo_starting_at_version(in_git_dir, fake_versions):
     ]
 
 
+def test_make_repo_starting_at_version_skip_release(in_git_dir, fake_versions):
+    # Write a version file (as if we've already run this before)
+    in_git_dir.join('.version').write('0.23.1')
+    # make sure this is gone afterwards
+    in_git_dir.join('hooks.yaml').ensure()
+
+    make_repo(
+        '.',
+        language='ruby', name='scss-lint', description='', entry='scss-lint',
+        id='scss-lint', match_key='files', match_val=r'\.scss$', args='[]',
+        require_serial='false', minimum_pre_commit_version='0',
+        skip_release_pattern='0.24.0',
+    )
+
+    assert not in_git_dir.join('hooks.yaml').exists()
+
+    # Assert that we only got tags / commits for the stuff we added
+    assert _cmd('git', 'tag', '-l').split() == ['v0.24.1']
+    log_lines = _cmd(
+        'git', 'log',
+        '--pretty=format:%aI,%cI,%s',
+    ).splitlines()
+    log_lines_split = [log_line.split(',') for log_line in log_lines]
+    assert log_lines_split == [
+        [
+            '2023-01-09T21:00:48+00:00', '2023-01-09T21:00:48+00:00',
+            'Mirror: 0.24.1',
+        ],
+    ]
+
+
 def test_ruby_integration(in_git_dir):
     make_repo(
         '.',
